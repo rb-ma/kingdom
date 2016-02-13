@@ -1,0 +1,686 @@
+#include "Util.h"
+
+using namespace std;
+
+template <class t>
+Matrix<t>::Matrix
+(
+	const size_t num_rows,
+	const size_t num_cols
+) :
+	_num_rows (num_rows),
+	_num_cols (num_cols)
+{
+	_ASSERT(_num_rows > 0);
+	_ASSERT(_num_cols > 0);
+
+	for (unsigned row = 0; row < _num_rows; ++row) {
+		_matrix.emplace_back();
+		for (unsigned col = 0; col < _num_cols; ++col) {
+			_matrix[row].emplace_back();
+			_matrix[row][col] = 0;
+		}
+	}
+}
+
+template <class t>
+void
+Matrix<t>::insert
+(
+	const unsigned i_row,
+	const unsigned i_col,
+	const t        i_value
+)
+{
+	_ASSERT(i_row < _num_rows);
+	_ASSERT(i_col < _num_cols);
+
+	_matrix[i_row][i_col] = i_value;
+}
+
+template <class t>
+t
+Matrix<t>::get
+(
+	const unsigned i_row,
+	const unsigned i_col
+)
+{
+	_ASSERT(i_row < _num_rows);
+	_ASSERT(i_col < _num_cols);
+
+	return _matrix[i_row][i_col];
+}
+
+template <class t>
+void
+Matrix<t>::getCol
+(
+	const unsigned  i_col,
+	const unsigned  i_start_row,
+	const unsigned  i_num_rows,
+	vector <t>     &o_col
+)
+{
+	_ASSERT(i_col       < _num_cols);
+	_ASSERT(i_start_row < _num_rows);
+	_ASSERT(i_start_row + i_num_rows < _num_rows);
+	
+	for (unsigned i = i_start_row; i < (i_start_row + i_num_rows); ++i)
+		o_col.push_back(get(i, i_col));
+}
+
+template <class t>
+void
+Matrix<t>::remove
+(
+	const unsigned i_row,
+	const unsigned i_col
+)
+{
+	_ASSERT(i_row < _num_rows);
+	_ASSERT(i_col < _num_cols);
+
+	_matrix[i_row][i_col] = 0;
+}
+
+string
+getCSVLineCellAsString
+(
+	string line,
+	unsigned cell
+)
+{
+	stringstream line_stream(line);
+	string line_cell;
+	unsigned cell_i = 0;
+	while (getline(line_stream, line_cell, ',')) {
+		if (cell_i == cell)
+			return line_cell;
+		++cell_i;
+	}
+
+	throw exception("Unreachable Code");
+	return "";
+}
+
+double
+getCSVLineCellAsDouble
+(
+	string line,
+	unsigned cell
+)
+{
+	return stod(getCSVLineCellAsString(line, cell));
+}
+
+wstring
+s2ws
+(
+	const string &s
+)
+{
+	int slen = static_cast<int>(s.length() + 1);
+	int len = MultiByteToWideChar(CP_ACP, 0, s.c_str(), slen, 0, 0);
+	wchar_t * buf = new wchar_t[len];
+	MultiByteToWideChar(CP_ACP, 0, s.c_str(), slen, buf, len);
+	wstring r(buf);
+	delete[] buf;
+	return r;
+}
+
+template <class t>
+t
+list_max
+(
+	const vector<t> &i_list
+)
+{
+	if (i_list.empty()) 
+		_ABORT("List Is Empty");
+
+	t max = i_list[0];
+	for (auto iter = i_list.begin()+1; iter != i_list.end(); ++iter)
+		if (*iter > max) max = *iter;
+
+	return max;
+}
+
+template <class t>
+t
+list_min
+(
+	const vector<t> &i_list
+)
+{
+	if (i_list.empty())
+		_ABORT("List Is Empty");
+
+	t min = i_list[0];
+	for (auto iter = i_list.begin()+1; iter != i_list.end(); ++iter)
+		if (*iter < min) min = *iter;
+
+	return min;
+}
+
+template <class t>
+t
+list_mean
+(
+	const vector<t> &i_list
+)
+{
+	if (i_list.empty())
+		_ABORT("List Is Empty");
+
+	double i_list_size = static_cast<decltype(i_list_size)>(i_list.size());
+	double acc = 0.f;
+	for (auto iter = i_list.begin(); iter != i_list.end(); ++iter)
+		acc += static_cast<decltype(acc)>(*iter);
+
+	return static_cast<t>(acc/i_list_size);
+}
+
+template <class t>
+void
+matrix_mean
+(
+	const Matrix<t> &i_matrix,
+	vector<t>       &o_means
+)
+{
+	for (unsigned i = 0; i < i_matrix.getNumCols(); ++i) {
+		vector<t> column;
+		i_matrix.getCol(i, 0, i_matrix.getNumRows(), column);
+		o_means.push_back(_mean(column));
+	}
+}
+
+template <class t>
+t
+prctile
+(
+	vector<t> &i_list,
+	double     i_percentile
+)
+{
+	if (i_list.empty())
+		_ABORT("List Is Empty");
+
+	sort(i_list.begin(), i_list.end());
+	unsigned index = static_cast<decltype(index)>(ceil(i_percentile * static_cast<double>(i_list.size())));
+
+	if (index >= i_list.size())
+		index = static_cast<decltype(index)>(i_list.size() - 1u);
+
+	return i_list[index];
+}
+
+#include <ctime>
+
+string
+constructMarketDataFilename
+(
+	const string instrument	,
+	const char frequency
+)
+{
+	time_t rawtime;
+	struct tm * timeinfo;
+	time(&rawtime);
+	timeinfo = localtime(&rawtime);
+
+	int year  = timeinfo->tm_year + 1900;
+	int month = timeinfo->tm_mon  + 1;
+	int day   = timeinfo->tm_mday;
+
+	string file_prefix = instrument + "_" + convertIntToString(year) + "_" + convertIntToString(month) + "_";
+	switch (frequency) {
+	case MARKET_DATA_DAILY:
+		return file_prefix + convertIntToString(day) + "_DAILY.csv"; 
+		break;
+
+	case MARKET_DATA_WEEKLY:
+		return file_prefix + convertIntToString(day) + "_WEEKLY.csv";
+		break;
+
+	case MARKET_DATA_MONTHLY:
+		return file_prefix + "MONTHLY.csv";
+		break;
+	}
+
+	throw exception("Unreachable code");
+	return "";
+}
+
+string
+constructMarketDataUrl
+(
+	const string ticker,
+	const char frequency
+)
+{
+	time_t rawtime;
+	struct tm * timeinfo;
+	time(&rawtime);
+	timeinfo = localtime(&rawtime);
+
+	int year  = timeinfo->tm_year + 1900;
+	int month = timeinfo->tm_mon  + 1;
+	int day   = timeinfo->tm_mday;
+
+	return 
+		"http://real-chart.finance.yahoo.com/table.csv?s="
+		+ ticker
+		+ "&a="
+		+ convertIntToString(0)
+		+ "&b="
+		+ convertIntToString(1)
+		+ "&c="
+		+ convertIntToString(1900)
+		+ "&d=" 
+		+ convertIntToString(month - 1)
+		+ "&e="
+		+ convertIntToString(day)
+		+ "&f="
+		+ convertIntToString(year)
+		+ "&g="
+		+ frequency 
+		+ "&ignore=.csv";
+}
+
+string
+downloadMarketData
+(
+	string instrument,
+	const char frequency
+)
+{
+	string file_str = constructMarketDataFilename(instrument, frequency);
+	ifstream ifile(file_str.c_str());
+	if (ifile) return file_str;
+
+	wstring url_str  = s2ws(constructMarketDataUrl(instrument, frequency));
+	
+	if (S_OK != URLDownloadToFile(0, url_str.c_str(), s2ws(file_str).c_str(), 0, NULL)) {
+		_LOG("Unable to download market data file");
+		return "";
+	}
+
+	return file_str;
+}
+
+double
+getReturn
+(
+	string instrument,
+	const char frequency,
+	const int num_periods
+)
+{
+	downloadMarketData(instrument, frequency);
+
+	ifstream data(constructMarketDataFilename(instrument, frequency).c_str());
+	if(data.is_open()) {
+		string line;
+		getline(data, line);
+		if (data.bad() || data.eof())
+			_ABORT("Error reading Market Data file");
+		
+		double start, end;
+		for(int period = 0; period <= num_periods; ++period) {
+			getline(data, line);
+			if (data.bad() || data.eof())
+				_ABORT("Error reading Market Data file");
+
+			if (period == 0)
+				end = getCSVLineCellAsDouble(line, YahooMarketDataColumn::_ADJ_CLOSE);
+			if (period == num_periods) 
+				start = getCSVLineCellAsDouble(line, YahooMarketDataColumn::_ADJ_CLOSE);
+		}
+
+		return ((end/start) - 1.f);
+	}
+
+	_ABORT("Unable to parse Market Data CSV File");
+	return -1.f;
+}
+
+// http://www.mathworks.com/help/econ/ret2price.html
+void
+ret2price 
+(
+	Matrix<double>   &i_ret_series,
+	vector<double>   &i_start_price,
+	vector<unsigned> &i_ret_intervals,
+	unsigned          i_start_time,
+	CompoundingMethod i_method,
+	pair<Matrix<double>, vector<unsigned> > &o_price
+)
+{
+	const size_t NUMOBS    = i_ret_series.getNumRows();
+	const size_t NUMASSETS = i_ret_series.getNumCols();
+
+	Matrix<double>   *tick_series = &o_price.first;
+	vector<unsigned> *tick_times  = &o_price.second;
+
+	if (i_ret_intervals.size() == 0) {
+		for (unsigned o = 0; o < NUMOBS; ++o)
+			i_ret_intervals.insert(i_ret_intervals.begin(), 1u);
+	}
+	else if (i_ret_intervals.size() == 1) {
+		for (unsigned o = 0; o < NUMOBS-1; ++o)
+			i_ret_intervals.insert(i_ret_intervals.begin(), i_ret_intervals[0]);
+	}
+	else {
+		_ASSERT(i_ret_intervals.size() == NUMOBS);
+	}
+
+	_ASSERT(i_start_price.size() == NUMASSETS);
+	_ASSERT(tick_series->checkDims(NUMOBS+1, NUMASSETS));
+	_ASSERT(tick_times->size() == NUMOBS+1);
+
+	unsigned obs = 0;
+
+	for (unsigned asset = 0; asset < NUMASSETS; ++asset){
+		tick_series->insert(obs, asset, i_start_price[asset]);
+		(*tick_times)[obs] = i_start_time;
+	}
+
+	for (obs = 0; obs < NUMOBS; ++obs) {
+		unsigned ret_interval = i_ret_intervals[obs];
+		(*tick_times)[obs+1] = (*tick_times)[obs] + ret_interval;
+
+		for (unsigned asset = 0; asset < NUMASSETS; ++asset) {
+			double ret   = static_cast<double>(i_ret_series.get(obs, asset));
+			double start = static_cast<double>(i_start_price[obs]); // TODO: Is this the right start price?
+
+			try {
+				double price = ret2price(ret, start, ret_interval, i_method);
+				tick_series->insert(obs+1, asset, price);
+			} catch (exception) {
+				_ABORT("Unable To Calculate New Price From Return");
+			}
+		}
+	}
+}
+ 
+// pow(x, y) = x^y
+double
+ret2price
+(
+	double            i_return,
+	double            i_start_price,
+	unsigned          i_ret_interval,
+	CompoundingMethod i_method
+)
+{
+	switch (i_method) {
+	case CONTINUOUS: {
+		// TODO: double check this against excel math
+		// ** note -- continuous is log and periodic is geometric
+		double ret_interval_f = static_cast<double>(i_ret_interval);
+		return i_start_price * pow((1.f + i_return/ret_interval_f), ret_interval_f);
+		break;
+	}
+	
+	case PERIODIC:
+		return i_start_price * (1.f + i_return);
+		break;
+
+	default:
+		throw exception("Unhandled Compounding Method");
+	}
+}
+
+void
+getDrawDown
+(
+	Matrix<double> &i_portfolio_returns,
+	vector<double> &o_data
+)
+{
+	const size_t NUMOBS    = i_portfolio_returns.getNumRows();
+	const size_t NUMASSETS = i_portfolio_returns.getNumCols();
+	const size_t NUMPRICES = NUMOBS + 1;
+
+	for (unsigned k = 0; k < NUMASSETS; ++k) {
+		Matrix<double> asset_prices(NUMPRICES, 1);
+		vector<unsigned> asset_series(NUMPRICES);
+		pair<Matrix<double>, vector<unsigned> > asset_pair = make_pair(asset_prices, asset_series);
+		Matrix<double> portfolio_returns(NUMOBS, 1);
+		
+		for (unsigned row = 0; row < NUMOBS; ++row)
+			portfolio_returns.insert(row, k, i_portfolio_returns.get(row, k));
+
+		ret2price(
+			portfolio_returns,
+			vector<double>(NUMOBS, 1.f),
+			vector<unsigned>(NUMOBS, 1u),
+			0u,
+			CompoundingMethod::PERIODIC,
+			asset_pair);
+
+		// compute vector of running maximum upto time t
+		vector<double> running_maximum;
+		vector<double> asset_prices_col;
+		asset_prices.getCol(k, 0, static_cast<unsigned>(asset_prices.getNumRows()), asset_prices_col);
+		for (unsigned row = 0; row < asset_prices.getNumRows(); ++row)
+			running_maximum.push_back(list_max(vector<double>(asset_prices_col.begin(), asset_prices_col.begin() + row)));
+	
+		// compute drawdowns for each time t
+		// it is defined as the drop of the asset price from its running maximum
+		vector<double> draw_down;
+		for (unsigned row = 0; row < asset_prices.getNumRows(); ++row)
+			draw_down.push_back(running_maximum[row] - asset_prices_col[row]);
+
+		vector<double> temp;
+		for (unsigned row = 0; row < asset_prices.getNumRows(); ++row) {
+			vector<double> list;
+			list.push_back(0.f);
+			list.push_back(-draw_down[row]);
+			temp.push_back(list_min(list)/running_maximum[row]);
+		}
+
+		double average_dd = list_mean(temp);
+		double max_dd     = list_max(temp);
+		double lp         = prctile(temp, 5.f);
+
+		vector<double> worst_dd;
+		for (auto iter = temp.begin(); iter != temp.end(); ++iter)
+			if (*iter < lp) worst_dd.push_back(*iter);
+
+		double cdar95 = list_mean(worst_dd);
+
+		vector<double> dd_metrics;
+		dd_metrics.push_back(cdar95);
+		dd_metrics.push_back(max_dd);
+		dd_metrics.push_back(lp);
+		o_data.push_back(list_mean(dd_metrics));
+	}
+}
+
+void
+ordinaryLeastSquaresRegression
+(
+	vector<double> i_deps,
+	vector<pair<Instrument, vector<double> > > i_indeps,
+	const unsigned i_starting_index,
+	const unsigned i_window_size,
+	vector<OrdinaryLeastSquaresRegressionMetrics> &o_result
+)
+{
+	_ASSERT(i_deps.size() >= (i_starting_index + i_window_size));
+	for (auto iter = i_indeps.begin(); iter != i_indeps.end(); ++iter)
+		_ASSERT(iter->second.size() >= (i_starting_index + i_window_size));
+	
+	size_t num_indeps = i_indeps.size();
+
+	// sum of x values
+	vector<double> sum_x(num_indeps, 0.f);
+
+	// sum of y values
+	double sum_y = 0.f;
+	
+	// sum of x * y
+	vector<double> sum_xy(num_indeps, 0.f);
+
+	// sum of x^2
+	vector<double> sum_xx(num_indeps, 0.f);
+
+	// sum of squared residue
+	double sum_res = 0.f;
+	
+	// slope of regression line
+	vector<double> slope(num_indeps, 0.f);
+
+	// y intercept of regression line
+	vector<double> y_int(num_indeps, 0.f);
+
+	// sum of squared of discrepancies
+	vector<double> sum_yres(num_indeps, 0.f);
+
+	// mean of y
+	double avg_y = 0.f;
+
+	// mean of x
+	vector<double> avg_x(num_indeps, 0.f);
+
+	// calculate various sums
+	for (unsigned y_iter = i_starting_index; y_iter < i_starting_index + i_window_size; ++y_iter) {
+		double y = i_deps[y_iter];
+		sum_y += y;
+		for (unsigned x_iter = 0; x_iter < num_indeps; ++x_iter) {
+			double x = i_indeps[x_iter].second[y_iter];
+			sum_x[x_iter]  += x;
+			sum_xy[x_iter] += x*y;
+			sum_xx[x_iter] += x*x;
+		}
+	}
+	
+	// calculate the means of x and y
+	double data_size = static_cast<double>(i_window_size);
+	for (unsigned x_iter = 0; x_iter < num_indeps; ++x_iter) {
+		avg_x[x_iter] = sum_x[x_iter] / data_size;
+	}
+	avg_y = sum_y / data_size;
+
+	// slope or a1
+	for (unsigned x_iter = 0; x_iter < num_indeps; ++x_iter) {
+		slope[x_iter] = 
+			( (data_size * sum_xy[x_iter]) - (sum_x[x_iter] * sum_y) ) /
+			( (data_size * sum_xx[x_iter]) - (sum_x[x_iter] * sum_x[x_iter]) );
+	}
+	
+	// y intercept of a0
+	for (unsigned x_iter = 0; x_iter < num_indeps; ++x_iter) {
+		y_int[x_iter] = avg_y - slope[x_iter] * avg_x[x_iter];
+	}
+
+	// calculate squared residues, their sum etc.
+	for (unsigned y_iter = i_starting_index; y_iter < (i_starting_index + i_window_size); ++y_iter) {
+		double y = i_deps[y_iter];
+		sum_res += pow(y - avg_y, 2.f);
+
+		for (unsigned x_iter = 0; x_iter < num_indeps; ++x_iter) {
+			double x = i_indeps[x_iter].second[y_iter];
+			sum_yres[x_iter] += pow(y - y_int[x_iter] - (slope[x_iter] * x), 2.f);			
+		}
+	}
+
+	for (unsigned x_iter = 0; x_iter < num_indeps; ++x_iter) {
+		double r_sqr = (sum_res - sum_yres[x_iter]) / sum_res;
+		o_result.push_back(OrdinaryLeastSquaresRegressionMetrics(
+			i_indeps[x_iter].first, 
+			sqrt(sum_res / (data_size - 1.f)), 
+			sqrt(sum_yres[x_iter] / (data_size - 2.f)), 
+			r_sqr, 
+			sqrt(r_sqr)));
+	}
+}
+
+void
+populateReturnVector
+(
+	string i_market_data_filename,
+	const unsigned i_num_returns,
+	vector<double> &o_returns
+)
+{
+	_ASSERT(i_num_returns > 0);
+
+	ifstream file(i_market_data_filename.c_str());
+	if (file.is_open()) {
+		string line;
+		// get the first line
+		getline(file, line);
+		
+		getline(file, line);
+		double end = getCSVLineCellAsDouble(line, _ADJ_CLOSE);
+		for (unsigned ret = 0; ret < i_num_returns && file.good(); ++ret) {
+			getline(file, line);
+			double start = getCSVLineCellAsDouble(line, _ADJ_CLOSE);
+			o_returns.push_back((end/start) - 1.f);
+			end = start;
+		}
+	}
+}
+
+void
+replicateMutualFundWithETFs
+(
+	string i_mutual_fund,
+	const unsigned i_num_etfs,
+	const unsigned i_num_regressions,
+	const unsigned i_regression_window
+)
+{
+	cout << "Replicating " << i_mutual_fund << " ..." << endl;
+
+	// Download ETF Market Data
+	vector<pair<Instrument, vector<double> > > etf_returns;
+	ifstream etf_file("etfs.txt");
+	string line;
+	for (unsigned etf = 0; etf < i_num_etfs; ++etf) {
+		getline(etf_file, line);
+		string etf_symbol = getCSVLineCellAsString(line, 0);
+		
+		string etf_md_filename = downloadMarketData(
+			etf_symbol, 
+			MARKET_DATA_WEEKLY);
+
+		vector<double> this_etf_returns;
+		populateReturnVector(
+			etf_md_filename, 
+			i_num_regressions * i_regression_window, 
+			this_etf_returns);
+
+		etf_returns.push_back(make_pair(Instrument(0, etf_symbol, ""), this_etf_returns));
+	}
+
+	// Download Mutual Fund Market Data
+	string mutual_fund_filename = downloadMarketData(
+		i_mutual_fund, 
+		MARKET_DATA_WEEKLY);
+	
+	vector<double> mutual_fund_returns;
+	populateReturnVector(mutual_fund_filename, 
+		i_num_regressions * i_regression_window, 
+		mutual_fund_returns);
+
+	// Rolling OLS
+	for (unsigned regression = 0; regression < i_num_regressions; ++regression) {
+		vector<OrdinaryLeastSquaresRegressionMetrics> ols_results;
+		ordinaryLeastSquaresRegression(
+			mutual_fund_returns,
+			etf_returns,
+			regression,
+			i_regression_window,
+			ols_results);
+
+		cout << "Regression #" << regression << endl;
+		for(auto iter = ols_results.begin(); iter != ols_results.end(); ++iter)
+			iter->prettyPrint();
+	}
+	
+}

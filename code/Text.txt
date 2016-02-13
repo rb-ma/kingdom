@@ -1,0 +1,70 @@
+// Custom Matrix Implementation
+// TODO: Look into using Boost matrix type
+template <class t>
+class Matrix
+{
+public:
+	Matrix
+		(
+		const size_t num_rows, 
+		const size_t num_cols);
+
+	inline size_t 
+		getNumRows
+		(
+		void
+		) { return _num_rows; }
+	
+	inline size_t 
+		getNumCols
+		(
+		void
+		) { return _num_cols; }
+	
+	inline void 
+		insert
+		(
+		const unsigned i_row, 
+		const unsigned i_col, 
+		const t        i_value);
+	
+	inline t    
+		get
+		(
+		const unsigned i_row, 
+		const unsigned i_col
+		);
+
+	inline void
+		getCol
+		(
+		const unsigned  i_col,
+		const unsigned  i_start_row,
+		const unsigned  i_num_rows,
+		vector<t>       &o_col
+		);
+
+	inline void 
+		remove
+		(
+		const unsigned i_row, 
+		const unsigned i_col);
+
+	inline bool 
+		checkDims
+		(
+		const size_t exp_rows, 
+		const size_t exp_cols
+		) { return (exp_rows == _num_rows) && (exp_cols == _num_cols); }
+	
+	inline bool 
+		dimsMatch
+		(
+		const Matrix<t> &a, 
+		const Matrix<t> &b) { return (a.getNumRows() == b.getNumRows()) && (a.getNumCols() == b.getNumCols()); }
+
+private:
+	size_t             _num_rows;
+	size_t             _num_cols;
+	vector<vector<t> > _matrix;
+};
